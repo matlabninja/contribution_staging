@@ -1,6 +1,7 @@
 import os
 import os.path
 import pathlib
+import torch
 from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 from PIL import Image
@@ -19,7 +20,9 @@ class OxfordIIITPet(VisionDataset):
             ``segmentation``. Can also be a list to output a tuple with all specified target types. The types represent:
 
                 - ``category`` (int): Label for one of the 37 pet categories.
-                - ``segmentation`` (PIL image): Segmentation trimap of the image.
+                - ``segmentation`` (PIL image): Segmentation trimap of the image. Pixels on the animal will be
+                  assigned a value on [0,n-1] with n being the number of categories. Background is assigned the value
+                  n, and the boundary region is assigned the value n+1
 
             If empty, ``None`` will be returned as target.
 
@@ -113,6 +116,11 @@ class OxfordIIITPet(VisionDataset):
 
         if self.transforms:
             image, target = self.transforms(image, target)
+
+        if target_type == "segmentation" and isinstance(target,torch.Tensor):
+            target[target==3] = len(self.classes)+1
+            target[target==2] = len(self.classes)
+            target[target==1] = self._labels[idx]
 
         return image, target
 
