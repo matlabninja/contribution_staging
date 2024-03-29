@@ -45,6 +45,7 @@ class OxfordIIITPet(VisionDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         download: bool = False,
+        binary: bool = False,
     ):
         self._split = verify_str_arg(split, "split", ("trainval", "test"))
         if isinstance(target_types, str):
@@ -69,17 +70,22 @@ class OxfordIIITPet(VisionDataset):
         self._labels = []
         with open(self._anns_folder / f"{self._split}.txt") as file:
             for line in file:
-                image_id, label, *_ = line.strip().split()
+                image_id, label, bin_label, _ = line.strip().split()
+                if binary:
+                    label = bin_label
                 image_ids.append(image_id)
                 self._labels.append(int(label) - 1)
 
-        self.classes = [
-            " ".join(part.title() for part in raw_cls.split("_"))
-            for raw_cls, _ in sorted(
-                {(image_id.rsplit("_", 1)[0], label) for image_id, label in zip(image_ids, self._labels)},
-                key=lambda image_id_and_label: image_id_and_label[1],
-            )
-        ]
+        if binary:
+            self.classes = ['Cat','Dog']
+        else:
+            self.classes = [
+                " ".join(part.title() for part in raw_cls.split("_"))
+                for raw_cls, _ in sorted(
+                    {(image_id.rsplit("_", 1)[0], label) for image_id, label in zip(image_ids, self._labels)},
+                    key=lambda image_id_and_label: image_id_and_label[1],
+                )
+            ]
         self.class_to_idx = dict(zip(self.classes, range(len(self.classes))))
 
         self._images = [self._images_folder / f"{image_id}.jpg" for image_id in image_ids]
