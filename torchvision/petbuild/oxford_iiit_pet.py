@@ -70,7 +70,9 @@ class OxfordIIITPet(VisionDataset):
         self._labels = []
         with open(self._anns_folder / f"{self._split}.txt") as file:
             for line in file:
-                image_id, label, *_ = line.strip().split()
+                image_id, label, bin_label, _ = line.strip().split()
+                if binary:
+                    label = bin_label
                 image_ids.append(image_id)
                 self._labels.append(int(label) - 1)
 
