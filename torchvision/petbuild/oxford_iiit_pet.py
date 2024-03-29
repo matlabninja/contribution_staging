@@ -13,7 +13,7 @@ class OxfordIIITPet(VisionDataset):
     """`Oxford-IIIT Pet Dataset   <https://www.robots.ox.ac.uk/~vgg/data/pets/>`_.
 
     Args:
-        root (string): Root directory of the dataset.
+        root (str or ``pathlib.Path``): Root directory of the dataset.
         split (string, optional): The dataset split, supports ``"trainval"`` (default) or ``"test"``.
         target_types (string, sequence of strings, optional): Types of target to use. Can be ``category`` (default) or
             ``segmentation``. Can also be a list to output a tuple with all specified target types. The types represent:
@@ -23,13 +23,11 @@ class OxfordIIITPet(VisionDataset):
 
             If empty, ``None`` will be returned as target.
 
-        transform (callable, optional): A function/transform that  takes in a PIL image and returns a transformed
+        transform (callable, optional): A function/transform that takes in a PIL image and returns a transformed
             version. E.g, ``transforms.RandomCrop``.
         target_transform (callable, optional): A function/transform that takes in the target and transforms it.
         download (bool, optional): If True, downloads the dataset from the internet and puts it into
             ``root/oxford-iiit-pet``. If dataset is already downloaded, it is not downloaded again.
-        binary (bool, optional): If True, assigns samples to one of two classes, cat or dog, instead of breed-
-            specific labels
     """
 
     _RESOURCES = (
@@ -40,14 +38,13 @@ class OxfordIIITPet(VisionDataset):
 
     def __init__(
         self,
-        root: str,
+        root: Union[str, pathlib.Path],
         split: str = "trainval",
         target_types: Union[Sequence[str], str] = "category",
         transforms: Optional[Callable] = None,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         download: bool = False,
-        binary: bool = False,
     ):
         self._split = verify_str_arg(split, "split", ("trainval", "test"))
         if isinstance(target_types, str):
@@ -72,22 +69,17 @@ class OxfordIIITPet(VisionDataset):
         self._labels = []
         with open(self._anns_folder / f"{self._split}.txt") as file:
             for line in file:
-                image_id, label, bin_label, _ = line.strip().split()
-                if binary:
-                    label = bin_label
+                image_id, label, *_ = line.strip().split()
                 image_ids.append(image_id)
                 self._labels.append(int(label) - 1)
 
-        if binary:
-            self.classes = ['Cat','Dog']
-        else:
-            self.classes = [
-                " ".join(part.title() for part in raw_cls.split("_"))
-                for raw_cls, _ in sorted(
-                    {(image_id.rsplit("_", 1)[0], label) for image_id, label in zip(image_ids, self._labels)},
-                    key=lambda image_id_and_label: image_id_and_label[1],
-                )
-            ]
+        self.classes = [
+            " ".join(part.title() for part in raw_cls.split("_"))
+            for raw_cls, _ in sorted(
+                {(image_id.rsplit("_", 1)[0], label) for image_id, label in zip(image_ids, self._labels)},
+                key=lambda image_id_and_label: image_id_and_label[1],
+            )
+        ]
         self.class_to_idx = dict(zip(self.classes, range(len(self.classes))))
 
         self._images = [self._images_folder / f"{image_id}.jpg" for image_id in image_ids]
