@@ -111,7 +111,7 @@ class OxfordIIITPet(VisionDataset):
         if self.transforms:
             image, target = self.transforms(image, target)
 
-        if target_type == "segmentation" and isinstance(target,torch.Tensor()):
+        if target_type == "segmentation" and isinstance(target,torch.Tensor):
             target[target==3] = len(self.classes)+1
             target[target==2] = len(self.classes)
             target[target==1] = self._labels[idx]
