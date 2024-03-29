@@ -31,6 +31,7 @@ class OxfordIIITPet(VisionDataset):
         target_transform (callable, optional): A function/transform that takes in the target and transforms it.
         download (bool, optional): If True, downloads the dataset from the internet and puts it into
             ``root/oxford-iiit-pet``. If dataset is already downloaded, it is not downloaded again.
+        binary (bool, optional): If true, creates class labels as cat:0 and dog: 1 instead of the 37 breeds
     """
 
     _RESOURCES = (
