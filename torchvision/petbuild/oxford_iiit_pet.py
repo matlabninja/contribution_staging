@@ -20,6 +20,7 @@ class OxfordIIITPet(VisionDataset):
 
                 - ``category`` (int): Label for one of the 37 pet categories.
                 - ``segmentation`` (PIL image): Segmentation trimap of the image.
+                - ``detection`` (dict): Pascal VOC annotation dict
 
             If empty, ``None`` will be returned as target.
 
@@ -34,7 +35,7 @@ class OxfordIIITPet(VisionDataset):
         ("https://www.robots.ox.ac.uk/~vgg/data/pets/data/images.tar.gz", "5c4f3ee8e5d25df40f4fd59a7f44e54c"),
         ("https://www.robots.ox.ac.uk/~vgg/data/pets/data/annotations.tar.gz", "95a8c909bbe2e81eed6a22bccdf3f68f"),
     )
-    _VALID_TARGET_TYPES = ("category", "segmentation")
+    _VALID_TARGET_TYPES = ("category", "segmentation", "detection")
 
     def __init__(
         self,
@@ -84,6 +85,19 @@ class OxfordIIITPet(VisionDataset):
 
         self._images = [self._images_folder / f"{image_id}.jpg" for image_id in image_ids]
         self._segs = [self._segs_folder / f"{image_id}.png" for image_id in image_ids]
+        self._xmls = [self._xmls_folder / f"{image_id}.xml" for image_id in image_ids]
+
+        # The oxford pet dataset has detection XMLs in VOC format, but some images do not have xmls
+        # Here we filter to only samples that have corresponding xml files when detection is selected
+        if 'detection' in target_types:
+            # Notify users this is not a complete dataset
+            print('Dataset does not contain detection annotations for every sample. Filtering to include' \
+                  'only those that do.')
+            # Set up filtered arrays
+            self._labels = [lbl for lbl,xml_file in zip(self._labels,self._xmls) if os.path.isfile(xml_file)]
+            self._images = [img for img,xml_file in zip(self._images,self._xmls) if os.path.isfile(xml_file)]
+            self._segs = [seg for seg,xml_file in zip(self._segs,self._xmls) if os.path.isfile(xml_file)]
+            self._xmls = [xml_file for xml_file in self._xmls if os.path.isfile(xml_file)]
 
     def __len__(self) -> int:
         return len(self._images)
@@ -95,8 +109,11 @@ class OxfordIIITPet(VisionDataset):
         for target_type in self._target_types:
             if target_type == "category":
                 target.append(self._labels[idx])
-            else:  # target_type == "segmentation"
+            elif target_type == "segmentation":
                 target.append(Image.open(self._segs[idx]))
+            else:
+                target.append(VOCDetection.parse_voc_xml(ET_parse(self._xmls[idx]).getroot()))
+                target[-1]['annotation']['object'][0]['name'] = self.classes[self._labels[idx]]
 
         if not target:
             target = None
