@@ -21,7 +21,9 @@ class OxfordIIITPet(VisionDataset):
             ``segmentation``. Can also be a list to output a tuple with all specified target types. The types represent:
 
                 - ``category`` (int): Label for one of the 37 pet categories.
-                - ``segmentation`` (PIL image): Segmentation trimap of the image.
+                - ``segmentation`` (PIL image): Segmentation trimap of the image. Pixels on the animal will be
+                  assigned a value on [0,n-1] with n being the number of categories. Background is assigned the value
+                  n, and the boundary region is assigned the value n+1
                 - ``detection`` (dict): Pascal VOC annotation dict
 
             If empty, ``None`` will be returned as target.
@@ -31,6 +33,7 @@ class OxfordIIITPet(VisionDataset):
         target_transform (callable, optional): A function/transform that takes in the target and transforms it.
         download (bool, optional): If True, downloads the dataset from the internet and puts it into
             ``root/oxford-iiit-pet``. If dataset is already downloaded, it is not downloaded again.
+        binary (bool, optional): If true, creates class labels as cat:0 and dog: 1 instead of the 37 breeds
     """
 
     _RESOURCES = (
@@ -48,6 +51,7 @@ class OxfordIIITPet(VisionDataset):
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
         download: bool = False,
+        binary: bool = False,
     ):
         self._split = verify_str_arg(split, "split", ("trainval", "test"))
         if isinstance(target_types, str):
@@ -73,17 +77,22 @@ class OxfordIIITPet(VisionDataset):
         self._labels = []
         with open(self._anns_folder / f"{self._split}.txt") as file:
             for line in file:
-                image_id, label, *_ = line.strip().split()
+                image_id, label, bin_label, _ = line.strip().split()
+                if binary:
+                    label = bin_label
                 image_ids.append(image_id)
                 self._labels.append(int(label) - 1)
 
-        self.classes = [
-            " ".join(part.title() for part in raw_cls.split("_"))
-            for raw_cls, _ in sorted(
-                {(image_id.rsplit("_", 1)[0], label) for image_id, label in zip(image_ids, self._labels)},
-                key=lambda image_id_and_label: image_id_and_label[1],
-            )
-        ]
+        if binary:
+            self.classes = ['Cat','Dog']
+        else:
+            self.classes = [
+                " ".join(part.title() for part in raw_cls.split("_"))
+                for raw_cls, _ in sorted(
+                    {(image_id.rsplit("_", 1)[0], label) for image_id, label in zip(image_ids, self._labels)},
+                    key=lambda image_id_and_label: image_id_and_label[1],
+                )
+            ]
         self.class_to_idx = dict(zip(self.classes, range(len(self.classes))))
 
         self._images = [self._images_folder / f"{image_id}.jpg" for image_id in image_ids]
@@ -127,6 +136,11 @@ class OxfordIIITPet(VisionDataset):
 
         if self.transforms:
             image, target = self.transforms(image, target)
+
+        if target_type == "segmentation" and isinstance(target,torch.Tensor):
+            target[target==3] = len(self.classes)+1
+            target[target==2] = len(self.classes)
+            target[target==1] = self._labels[idx]
 
         return image, target
 
