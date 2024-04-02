@@ -1,13 +1,15 @@
 import os
 import os.path
 import pathlib
+import torch
+from xml.etree.ElementTree import parse as ET_parse
 from typing import Any, Callable, Optional, Sequence, Tuple, Union
 
 from PIL import Image
 
 from .utils import download_and_extract_archive, verify_str_arg
 from .vision import VisionDataset
-
+from .voc import VOCDetection
 
 class OxfordIIITPet(VisionDataset):
     """`Oxford-IIIT Pet Dataset   <https://www.robots.ox.ac.uk/~vgg/data/pets/>`_.
@@ -59,6 +61,7 @@ class OxfordIIITPet(VisionDataset):
         self._images_folder = self._base_folder / "images"
         self._anns_folder = self._base_folder / "annotations"
         self._segs_folder = self._anns_folder / "trimaps"
+        self._xmls_folder = self._anns_folder / "xmls"
 
         if download:
             self._download()
@@ -112,8 +115,8 @@ class OxfordIIITPet(VisionDataset):
             elif target_type == "segmentation":
                 target.append(Image.open(self._segs[idx]))
             else:
-                target.append(VOCDetection.parse_voc_xml(ET_parse(self._xmls[idx]).getroot()))
-                target[-1]['annotation']['object'][0]['name'] = self.classes[self._labels[idx]]
+                target.append(self._to_rcnn(VOCDetection.parse_voc_xml(ET_parse(self._xmls[idx]).getroot() \
+                                                                       ),self._labels[idx]))
 
         if not target:
             target = None
@@ -140,3 +143,16 @@ class OxfordIIITPet(VisionDataset):
 
         for url, md5 in self._RESOURCES:
             download_and_extract_archive(url, download_root=str(self._base_folder), md5=md5)
+
+    def _to_rcnn(self, anno_dict: dict,label: int) -> dict:
+        # Create output tensors
+        out = {'boxes': torch.empty(1,4,dtype=torch.float32),
+               'labels':torch.empty(1,dtype=torch.int64)}
+        # Populate output
+        out['boxes'][0,0] = float(anno_dict['annotation']['object'][0]['bndbox']['xmin'])
+        out['boxes'][0,1] = float(anno_dict['annotation']['object'][0]['bndbox']['ymin'])
+        out['boxes'][0,2] = float(anno_dict['annotation']['object'][0]['bndbox']['xmax'])
+        out['boxes'][0,3] = float(anno_dict['annotation']['object'][0]['bndbox']['ymax'])
+        out['labels'][0] = label
+
+        return out
